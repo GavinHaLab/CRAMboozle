@@ -1,0 +1,4 @@
+One-liner for making the samples.yaml file - list all crams for pipe.
+First sed is for removing intermediate files from benchmarking folders.
+
+ls .../*.cram  | awk -F "/" '{print "  " $NF ": " $0}' | sed 's/\.cram//' | sed  '1s/^/samples:\n/' > samples.yaml

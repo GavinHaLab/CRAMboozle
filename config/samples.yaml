@@ -1,0 +1,26 @@
+# samples.yaml for CRAMboozle.snakefile
+# Robert Patton, rpatton@fredhutch.org (Ha Lab)
+# v1.0
+
+# Sample information - simple format
+# Format: sample_name: path/to/input_file
+# Supports both BAM and CRAM files as input
+
+samples:
+  sample1: /path/to/sample1.bam
+  sample2: /path/to/sample2.cram
+  sample3: /path/to/sample3.bam
+
+# Example with more samples:
+# samples:
+#   patient001: /fh/fast/ha_g/user/data/bam_files/patient001_aligned.bam
+#   patient002: /fh/fast/ha_g/user/data/cram_files/patient002_aligned.cram
+#   control001: /fh/fast/ha_g/user/data/bam_files/control001_aligned.bam
+#   tumor_sample_A: /fh/fast/ha_g/user/data/cram_files/tumor_A_sorted.cram
+#   normal_sample_A: /fh/fast/ha_g/user/data/bam_files/normal_A_sorted.bam
+
+# Notes:
+# - File format (BAM/CRAM) is auto-detected by CRAMboozle based on file extension
+# - Input files should be coordinate-sorted and indexed
+# - Paths can be absolute or relative to the working directory
+# - No quotes needed around paths

@@ -1,0 +1,45 @@
+samples:
+  FHSC14_P-0092_sclc_pdx_L-0340.all.cleaned:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/SCLC_ULP_align_after_subtraction_snakemake/results/FHSC14_P-0092_sclc_pdx_G12.cleaned/FHSC14_P-0092_sclc_pdx_G12.cleaned_recalibrated.bam
+    WGS_name: FHSC14_P-0092_sclc_pdx_G12.cleaned
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads_SCLC_targeted_align_after_subtraction_snakemake/results/FHSC14_P-0092_sclc_pdx_L-0340.all.cleaned/FHSC14_P-0092_sclc_pdx_L-0340.all.cleaned_recalibrated.bam
+  LC0068_P-0012_benign_patient_L-0309.all:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/2019-11-22_SCLC_ULP_cfDNA/alignment/Sample_B06.bam
+    WGS_name: LC0068_P-0012_benign_patient_B06
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads/base_recalibration/L-0309/L-0309.bam
+  LC0174_P-0014_benign_patient_L-0311.all:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/2019-11-22_SCLC_ULP_cfDNA/alignment/Sample_E04.bam
+    WGS_name: LC0174_P-0014_benign_patient_E04
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads/base_recalibration/L-0311/L-0311.bam
+  LC0264_P-0019_benign_patient_L-0314.all:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/2019-11-22_SCLC_ULP_cfDNA/alignment/Sample_B11.bam
+    WGS_name: LC0264_P-0019_benign_patient_B11
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads/base_recalibration/L-0314/L-0314.bam
+  LC0767_P-0036_benign_patient_L-0277.all:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/2019-11-22_SCLC_ULP_cfDNA/alignment/Sample_E09.bam
+    WGS_name: LC0767_P-0036_benign_patient_E09
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads/base_recalibration/L-0277/L-0277.bam
+  LC0911_P-0042_benign_patient_L-0325.all:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/2019-11-22_SCLC_ULP_cfDNA/alignment/Sample_E10.bam
+    WGS_name: LC0911_P-0042_benign_patient_E10
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads/base_recalibration/L-0325/L-0325.bam
+  LX33B_P-0094_sclc_pdx_L-0342.all.cleaned:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/SCLC_ULP_align_after_subtraction_snakemake/results/LX33B_P-0094_sclc_pdx_F11.cleaned/LX33B_P-0094_sclc_pdx_F11.cleaned_recalibrated.bam
+    WGS_name: LX33B_P-0094_sclc_pdx_F11.cleaned
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads_SCLC_targeted_align_after_subtraction_snakemake/results/LX33B_P-0094_sclc_pdx_L-0342.all.cleaned/LX33B_P-0094_sclc_pdx_L-0342.all.cleaned_recalibrated.bam
+  LX33B_P-0100_sclc_pdx_L-0347.all.cleaned:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/SCLC_ULP_align_after_subtraction_snakemake/results/LX33B_P-0100_sclc_pdx_G01.cleaned/LX33B_P-0100_sclc_pdx_G01.cleaned_recalibrated.bam
+    WGS_name: LX33B_P-0100_sclc_pdx_G01.cleaned
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads_SCLC_targeted_align_after_subtraction_snakemake/results/LX33B_P-0100_sclc_pdx_L-0347.all.cleaned/LX33B_P-0100_sclc_pdx_L-0347.all.cleaned_recalibrated.bam
+  NCI109B_P-0093_sclc_pdx_L-0341.all.cleaned:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/SCLC_ULP_align_after_subtraction_snakemake/results/NCI109B_P-0093_sclc_pdx_H01.cleaned/NCI109B_P-0093_sclc_pdx_H01.cleaned_recalibrated.bam
+    WGS_name: NCI109B_P-0093_sclc_pdx_H01.cleaned
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads_SCLC_targeted_align_after_subtraction_snakemake/results/NCI109B_P-0093_sclc_pdx_L-0341.all.cleaned/NCI109B_P-0093_sclc_pdx_L-0341.all.cleaned_recalibrated.bam
+  SCLC150_P-0095_sclc_pdx_L-0343.all.cleaned:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/SCLC_ULP_align_after_subtraction_snakemake/results/SCLC150_P-0095_sclc_pdx_F12.cleaned/SCLC150_P-0095_sclc_pdx_F12.cleaned_recalibrated.bam
+    WGS_name: SCLC150_P-0095_sclc_pdx_F12.cleaned
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads_SCLC_targeted_align_after_subtraction_snakemake/results/SCLC150_P-0095_sclc_pdx_L-0343.all.cleaned/SCLC150_P-0095_sclc_pdx_L-0343.all.cleaned_recalibrated.bam
+  SCLC151_P-0101_sclc_pdx_L-0348.all.cleaned:
+    WGS: /fh/fast/ha_g/data/cfDNA_SCLC_ULP_WGS_hg38/SCLC_ULP_align_after_subtraction_snakemake/results/SCLC151_P-0101_sclc_pdx_G07.cleaned/SCLC151_P-0101_sclc_pdx_G07.cleaned_recalibrated.bam
+    WGS_name: SCLC151_P-0101_sclc_pdx_G07.cleaned
+    bam: /fh/fast/ha_g/data/cfDNA_SCLC_targeted_hg38/2020-05-18_all_reads_SCLC_targeted_align_after_subtraction_snakemake/results/SCLC151_P-0101_sclc_pdx_L-0348.all.cleaned/SCLC151_P-0101_sclc_pdx_L-0348.all.cleaned_recalibrated.bam
