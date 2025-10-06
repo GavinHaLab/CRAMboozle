@@ -13,7 +13,8 @@ cluster_slurm: config/cluster_slurm.yaml # used to get info about available CPUs
 ##############
 
 # Reference genome FASTA file (required for CRAM files)
-reference_genome: /fh/fast/ha_g/grp/reference/GRCh38/Broad_bundle_hg38/v0/Homo_sapiens_assembly38.fasta # use hg38
+reference_genome: /fh/fast/ha_g/grp/reference/GRCh38/Broad_bundle_hg38/v0/Homo_sapiens_assembly38.fasta # standard choice for DNA sequencing in Ha lab
+# reference_genome: /fh/fast/ha_g/grp/reference/Release_33_GRCh38/GRCh38.primary_assembly.genome.fa #  alt reference for most RNA-Seq
 
 # Results directory where de-identified files will be saved
 results_dir: results # where your results will go

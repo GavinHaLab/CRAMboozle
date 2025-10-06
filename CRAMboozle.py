@@ -48,6 +48,31 @@ def get_file_format(filepath):
     else:
         raise ValueError(f"Unsupported file format. File must have .bam or .cram extension: {filepath}")
 
+def validate_cram_reference(cram_path, reference_path):
+    """
+    Validate that a CRAM file can be opened with the given reference.
+    
+    Args:
+        cram_path (str): Path to CRAM file
+        reference_path (str): Path to reference FASTA file
+        
+    Returns:
+        bool: True if reference is compatible, False otherwise
+    """
+    try:
+        # Try to open the CRAM file with the reference
+        with pysam.AlignmentFile(cram_path, 'rc', reference_filename=reference_path) as test_file:
+            # Try to read the first few reads to test for reference mismatch
+            for i, read in enumerate(test_file.fetch()):
+                if i >= 5:  # Only test first few reads
+                    break
+        return True
+    except (OSError, ValueError) as e:
+        if "MD5 checksum reference mismatch" in str(e) or "truncated file" in str(e):
+            return False
+        # Re-raise other errors as they might be legitimate issues
+        raise e
+
 def get_output_format(output_path, default_format='cram'):
     """
     Determine output format based on file extension or use default.
@@ -171,15 +196,40 @@ def collect_alignment_chunks(inpath, chrs, outpath, unmapped, reference_fasta=No
         allpaths = [inpath+".tmp."+c+temp_ext for c in chrs[:-1]]
         allpaths.append(inpath+".tmp."+"unmapped"+temp_ext)
     
-    # Use appropriate pysam.cat arguments based on output format
-    if output_format == 'cram' and reference_fasta:
-        # For CRAM output, specify reference genome
-        cat_args = ['-o', outpath, '--reference', reference_fasta] + allpaths
-    else:
-        # For BAM output or when no reference specified
-        cat_args = ['-o', outpath] + allpaths
+    # For proper format handling, we need to read and write files instead of using pysam.cat
+    # which doesn't handle format conversion reliably
     
-    pysam.cat(*cat_args)
+    # Open the first file to get the header
+    first_file = allpaths[0]
+    if output_format == 'cram':
+        # Read first temp file to get header 
+        temp_format, temp_mode = get_file_format(first_file)
+        if temp_format == 'cram':
+            temp_in = pysam.AlignmentFile(first_file, 'rc', reference_filename=reference_fasta)
+        else:
+            temp_in = pysam.AlignmentFile(first_file, 'rb')
+        
+        # Create output file in CRAM format
+        out_file = pysam.AlignmentFile(outpath, 'wc', header=temp_in.header, reference_filename=reference_fasta)
+        
+        # Copy all reads from all temp files
+        for temp_path in allpaths:
+            temp_format, temp_mode = get_file_format(temp_path)
+            if temp_format == 'cram':
+                temp_reader = pysam.AlignmentFile(temp_path, 'rc', reference_filename=reference_fasta)
+            else:
+                temp_reader = pysam.AlignmentFile(temp_path, 'rb')
+            
+            for read in temp_reader:
+                out_file.write(read)
+            temp_reader.close()
+        
+        temp_in.close()
+        out_file.close()
+    else:
+        # For BAM output, use pysam.cat which works well for BAM
+        cat_args = ['-o', outpath] + allpaths
+        pysam.cat(*cat_args)
     x = [os.remove(f) for f in allpaths]
 
 def remove_tag(read, rtag):
@@ -392,6 +442,8 @@ def main():
                         help='Path to output file (defaults to CRAM format)', required = True)
     parser.add_argument('--fa', type=str, metavar='FILENAME',
                         help='Path to genome reference fasta (required for CRAM files)', required = True)
+    parser.add_argument('--force-bam', action='store_true',
+                        help='Force BAM output format even if CRAM is specified (useful for reference mismatch issues)')
     
     # Get available CPU count and use it as default
     available_cpus = get_cpu_count()
@@ -414,9 +466,33 @@ def main():
     input_format, input_mode = get_file_format(args.input)
     print(f"Detected input format: {input_format.upper()}")
     
+    # Validate reference compatibility for CRAM files
+    if input_format == 'cram':
+        print("Validating reference genome compatibility...")
+        if not validate_cram_reference(args.input, args.fa):
+            print("\nERROR: Reference genome mismatch detected!")
+            print("The CRAM file was created with a different reference genome than provided.")
+            print("\nPossible solutions:")
+            print("1. Find and use the original reference genome used to create this CRAM file")
+            print("2. Check CRAM headers with: samtools view -H <cram_file> | grep '^@SQ'")
+            print("3. Try a different GRCh38 build (GENCODE, ENSEMBL, UCSC versions)")
+            print("4. Convert to BAM format first: samtools view -b -T <correct_ref> <cram_file> > <bam_file>")
+            print(f"\nCurrent reference: {args.fa}")
+            quit(1)
+        print("Reference genome validation passed.")
+    
     # Determine output format
     output_format, output_mode, output_ext = get_output_format(args.out)
-    if not args.out.endswith(output_ext):
+    
+    # Override to BAM if --force-bam is specified
+    if args.force_bam:
+        output_format, output_mode, output_ext = 'bam', 'wb', '.bam'
+        if args.out.endswith('.cram'):
+            args.out = args.out.replace('.cram', '.bam')
+        elif not args.out.endswith('.bam'):
+            args.out = args.out + '.bam'
+        print(f"Forcing BAM output format: {args.out}")
+    elif not args.out.endswith(output_ext):
         args.out = args.out + output_ext
         print(f"Output will be in {output_format.upper()} format: {args.out}")
     
