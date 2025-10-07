@@ -1,13 +1,14 @@
 # CRAMboozle.snakefile
 # Robert Patton, rpatton@fredhutch.org (Ha Lab)
-# v1.0, 10/06/2025
+# v1.1, 10/07/2025
 
 """
 CRAMboozle Snakemake workflow for de-identifying BAM/CRAM files
 
 # before running snakemake at Fred Hutch, do in tmux terminal:
-ml snakemake/5.19.2-foss-2019b-Python-3.7.4
-ml Python/3.7.4-foss-2019b-fh1
+ml snakemake/7.32.3-foss-2022b
+ml Python/3.10.8-GCCcore-12.2.0
+ml Pysam/0.21.0-GCC-12.2.0
 
 # command to run snakemake (remove -np at end when done validating):
 snakemake -s CRAMboozle.snakefile --latency-wait 60 --keep-going --cluster-config config/cluster_slurm.yaml --cluster "sbatch -p {cluster.partition} --mem={cluster.mem} -t {cluster.time} -c {cluster.ncpus} -n {cluster.ntasks} -o {cluster.output} -J {cluster.JobName}" -j 40 -np

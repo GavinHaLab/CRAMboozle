@@ -2,7 +2,7 @@
 # Originally BAMboozle.py by Christoph Ziegenhain / christoph.ziegenhain@ki.se
 # Modified to CRAMboozle.py to handle both BAM and CRAM files as input and output CRAM files by default
 # Author: Robert Patton / rpatton@fredhutch.org
-# Last update: 10-06-2025
+# Last update: 10-07-2025 - Added CRAM v3.1+ and compression level 9 support
 
 import os
 import pysam
@@ -59,19 +59,25 @@ def validate_cram_reference(cram_path, reference_path):
     Returns:
         bool: True if reference is compatible, False otherwise
     """
+    # Temporarily reduce pysam verbosity to avoid error chatter during validation
+    old_verbosity = pysam.get_verbosity()
+    pysam.set_verbosity(0)
+    
     try:
         # Try to open the CRAM file with the reference
         with pysam.AlignmentFile(cram_path, 'rc', reference_filename=reference_path) as test_file:
             # Try to read the first few reads to test for reference mismatch
-            for i, read in enumerate(test_file.fetch()):
+            # Use until_eof=True to handle unindexed CRAM files
+            for i, read in enumerate(test_file.fetch(until_eof=True)):
                 if i >= 5:  # Only test first few reads
                     break
         return True
-    except (OSError, ValueError) as e:
-        if "MD5 checksum reference mismatch" in str(e) or "truncated file" in str(e):
-            return False
-        # Re-raise other errors as they might be legitimate issues
-        raise e
+    except (OSError, ValueError):
+        # Any exception during validation indicates incompatibility
+        return False
+    finally:
+        # Restore original verbosity
+        pysam.set_verbosity(old_verbosity)
 
 def get_output_format(output_path, default_format='cram'):
     """
@@ -119,7 +125,7 @@ def makeAlignmentHeader(args, v):
     hdr = alignment_file.header.to_dict()
     alignment_file.close()
 
-    cmdlinecall = 'CRAMboozle --input '+args.input+' --out '+args.out+' --fa '+args.fa+' --p '+str(args.p)
+    cmdlinecall = 'CRAMboozle --input '+args.input+' --out '+args.out+' --fa '+args.fa+' --p '+str(args.p)+' --compression-level '+str(args.compression_level)
     if args.strict:
         cmdlinecall = cmdlinecall+' --strict'
     if args.keepunmapped:
@@ -139,13 +145,15 @@ def makeAlignmentHeader(args, v):
 
     return hdr
 
-def idx_alignment_file(alignment_file_path, threads):
+def idx_alignment_file(alignment_file_path, threads, reference_fasta=None, compression_level=9):
     """
     Index a BAM or CRAM file using pysam.
     
     Args:
         alignment_file_path (str): Path to the BAM or CRAM file to index
         threads (int): Number of threads to use for indexing
+        reference_fasta (str): Path to reference FASTA (required for CRAM re-encoding)
+        compression_level (int): CRAM compression level for re-encoding (0-9)
         
     Returns:
         str: Path to the indexed file (may be different if sorting was required)
@@ -165,18 +173,114 @@ def idx_alignment_file(alignment_file_path, threads):
         input_file = alignment_file_path
         
         if file_format == 'cram':
-            sorted_file = alignment_file_path + ".sorted.cram" 
+            # To preserve CRAM settings, sort to BAM first then re-encode
+            tmp_bam = alignment_file_path + ".sorted.bam"
+            sorted_file = alignment_file_path + ".sorted.cram"
+            print("Sorting to temporary BAM to preserve CRAM settings...")
+            pysam.sort("-@"+threads, "-o", tmp_bam, input_file)
+            
+            # Preserve CRAM v3.1 settings and supply reference for re-encoding
+            print("Re-encoding to CRAM with preserved settings...")
+            if reference_fasta:
+                # Build format string with advanced compression options
+                fmt = f"cram,version=3.1,archive,level={compression_level}," \
+                      "use_lzma=1,use_bzip2=1,use_fqz=1,use_tok=1,use_arith=1"
+                try:
+                    pysam.view("-@", threads, "-O", fmt, "-T", reference_fasta,
+                               "-o", sorted_file, tmp_bam)
+                except Exception as e:
+                    print(f"Warning: Advanced CRAM compression failed, using basic CRAM: {e}")
+                    # Fallback to basic CRAM v3.1
+                    basic_fmt = f"cram,version=3.1,level={compression_level}"
+                    pysam.view("-@", threads, "-O", basic_fmt, "-T", reference_fasta,
+                               "-o", sorted_file, tmp_bam)
+            else:
+                print("Warning: No reference provided, CRAM settings may not be preserved")
+                pysam.view("-@", threads, "-C", "-o", sorted_file, tmp_bam)
+            os.remove(tmp_bam)
         else:
             sorted_file = alignment_file_path + ".sorted.bam"
+            pysam.sort("-@"+threads, "-o", sorted_file, input_file)
             
-        pysam.sort("-@"+threads, "-o", sorted_file, input_file)
-        print(f"Indexing {file_format.upper()} file...")
+        print(f"Indexing sorted {file_format.upper()} file...")
         pysam.index(sorted_file)
         alignment_file_path = sorted_file
         
     return alignment_file_path
 
-def collect_alignment_chunks(inpath, chrs, outpath, unmapped, reference_fasta=None):
+def open_cram_writer(path, mode, header, ref_path, threads, compression_level):
+    """
+    Create a CRAM writer with robust fallback for unsupported compression options.
+    
+    Args:
+        path (str): Output file path
+        mode (str): File mode (e.g., 'wc')
+        header: AlignmentHeader object
+        ref_path (str): Reference FASTA path
+        threads (int): Number of threads
+        compression_level (int): Compression level (0-9)
+        
+    Returns:
+        pysam.AlignmentFile: CRAM writer with best available compression
+    """
+    # Try advanced CRAM v3.1 compression first
+    advanced_options = [
+        "version=3.1",
+        "archive",  # enables 3.1 extras
+        f"level={compression_level}",
+        "use_lzma=1", "use_bzip2=1",  # compression algorithms
+        "use_fqz=1", "use_tok=1", "use_arith=1"  # 3.1-only advanced compression tools
+    ]
+    
+    try:
+        # For pysam 0.21.0 compatibility: use explicit keyword arguments only
+        cram_file = pysam.AlignmentFile(
+            filename=path,
+            mode=mode,
+            header=header,
+            reference_filename=ref_path,
+            threads=threads,
+            format_options=advanced_options
+        )
+        return cram_file
+    except (ValueError, OSError, TypeError) as e:
+        # Fallback: guaranteed CRAM v3.1 options only
+        print(f"Warning: Advanced CRAM compression options not supported, using fallback (level={compression_level})")
+        fallback_options = ["version=3.1", f"level={compression_level}"]
+        try:
+            cram_file = pysam.AlignmentFile(
+                filename=path,
+                mode=mode,
+                header=header,
+                reference_filename=ref_path,
+                threads=threads,
+                format_options=fallback_options
+            )
+            return cram_file
+        except (ValueError, OSError, TypeError):
+            # Final fallback: basic CRAM with compresslevel (older pysam compatibility)
+            print("Warning: CRAM v3.1 format_options not supported, using compresslevel parameter")
+            try:
+                return pysam.AlignmentFile(
+                    path,
+                    mode,
+                    header=header,
+                    reference_filename=ref_path,
+                    threads=threads,
+                    compresslevel=compression_level
+                )
+            except (ValueError, OSError, TypeError):
+                # Absolute fallback: basic CRAM with default settings
+                print("Warning: Using default CRAM settings")
+                return pysam.AlignmentFile(
+                    path,
+                    mode,
+                    header=header,
+                    reference_filename=ref_path,
+                    threads=threads
+                )
+
+def collect_alignment_chunks(inpath, chrs, outpath, unmapped, reference_fasta=None, compression_level=9):
     """
     Collect temporary alignment file chunks into final output file.
     
@@ -186,6 +290,7 @@ def collect_alignment_chunks(inpath, chrs, outpath, unmapped, reference_fasta=No
         outpath (str): Path to final output file
         unmapped (bool): Whether unmapped reads were processed
         reference_fasta (str): Path to reference FASTA (required for CRAM output)
+        compression_level (int): CRAM compression level (0-9, default 9 for maximum compression)
     """
     # Determine output format to use appropriate extension for temp files
     output_format, _, _ = get_output_format(outpath)
@@ -209,8 +314,28 @@ def collect_alignment_chunks(inpath, chrs, outpath, unmapped, reference_fasta=No
         else:
             temp_in = pysam.AlignmentFile(first_file, 'rb')
         
-        # Create output file in CRAM format
-        out_file = pysam.AlignmentFile(outpath, 'wc', header=temp_in.header, reference_filename=reference_fasta)
+        # Create output file in CRAM format with robust fallback
+        # Add metadata to header for documentation (only in final file to avoid duplication)
+        header_dict = temp_in.header.to_dict()
+        if 'CO' not in header_dict:
+            header_dict['CO'] = []
+        header_dict['CO'].append('CRAM-version:3.1')
+        header_dict['CO'].append(f'CRAM-compression-level:{compression_level}')
+        
+        # Mark final header as coordinate-sorted (helps validators)
+        header_dict.setdefault('HD', {}).update({'SO': 'coordinate'})
+        
+        new_header = pysam.AlignmentHeader.from_dict(header_dict)
+        
+        # Use robust CRAM writer with fallback
+        out_file = open_cram_writer(
+            path=outpath,
+            mode='wc',
+            header=new_header,
+            ref_path=reference_fasta,
+            threads=1,  # Single-threaded for final concatenation
+            compression_level=compression_level
+        )
         
         # Copy all reads from all temp files
         for temp_path in allpaths:
@@ -232,6 +357,11 @@ def collect_alignment_chunks(inpath, chrs, outpath, unmapped, reference_fasta=No
         pysam.cat(*cat_args)
     x = [os.remove(f) for f in allpaths]
 
+def _revcomp(s: str) -> str:
+    """Reverse complement a DNA sequence."""
+    tbl = str.maketrans('ACGTNacgtn', 'TGCANtgcan')
+    return s.translate(tbl)[::-1]
+
 def remove_tag(read, rtag):
     all_tags = read.get_tags()
     to_keep = [t[0] != rtag for t in all_tags]
@@ -246,7 +376,7 @@ def count_ref_consuming_bases(cigartuples):
             bases = bases+cig[1]
     return bases
 
-def clean_alignment_file(inpath, threads, fastapath, chr, strict, keepunmapped, keepsecondary, anonheader, output_format='cram'):
+def clean_alignment_file(inpath, threads, fastapath, contig, strict, keepunmapped, keepsecondary, anonheader, output_format='cram', compression_level=9):
     """
     Clean alignment data for a specific chromosome from BAM or CRAM file.
     
@@ -260,13 +390,14 @@ def clean_alignment_file(inpath, threads, fastapath, chr, strict, keepunmapped, 
         keepsecondary (bool): Whether to keep secondary alignments
         anonheader (dict): Header for output file
         output_format (str): Output format ('cram' or 'bam') for temporary files
+        compression_level (int): CRAM compression level (0-9, default 9 for maximum compression)
     """
     fa = pysam.FastaFile(fastapath)
 
-    if chr == '*':
+    if contig == '*':
         chrlabel = 'unmapped'
     else:
-        chrlabel = chr
+        chrlabel = contig
 
     # Detect input format
     input_format, input_mode = get_file_format(inpath)
@@ -285,12 +416,35 @@ def clean_alignment_file(inpath, threads, fastapath, chr, strict, keepunmapped, 
     else:
         inp = pysam.AlignmentFile(inpath, input_mode, threads=threads)
     
-    # Open output file based on desired output format
+    # Open output file based on desired output format with robust CRAM writer
     if output_format == 'cram':
-        out = pysam.AlignmentFile(tmppath, temp_mode, header=anonheader, reference_filename=fastapath, threads=threads)
+        # Don't add metadata to temp files to avoid duplication
+        # Ensure we have an AlignmentHeader object
+        header_obj = anonheader if isinstance(anonheader, pysam.AlignmentHeader) \
+                     else pysam.AlignmentHeader.from_dict(anonheader)
+        
+        # Use robust CRAM writer with fallback
+        out = open_cram_writer(
+            path=tmppath,
+            mode=temp_mode,
+            header=header_obj,
+            ref_path=fastapath,
+            threads=threads,
+            compression_level=compression_level
+        )
     else:
         out = pysam.AlignmentFile(tmppath, temp_mode, header=anonheader, threads=threads)
-    for read in inp.fetch(chr):
+    # Use robust fetching for unmapped reads
+    if contig == '*':
+        read_iterator = inp.fetch(until_eof=True)
+    else:
+        read_iterator = inp.fetch(contig)
+    
+    for read in read_iterator:
+        # Filter unmapped reads when processing unmapped contig
+        if contig == '*' and not read.is_unmapped:
+            continue
+            
         # deal with unmapped reads
         if chrlabel == 'unmapped':
             trim_tags = ['uT', 'nM', 'NM', 'XN', 'XM', 'XO', 'XG']
@@ -309,6 +463,11 @@ def clean_alignment_file(inpath, threads, fastapath, chr, strict, keepunmapped, 
         #determine some basics
         readlen = read.query_length
         qual = read.query_qualities
+        
+        # Handle missing quality scores (some CRAM files omit qualities)
+        if qual is None:
+            import array as _array
+            qual = _array.array('B', [30] * readlen)  # Use default quality score of 30
         if read.is_paired:
             readtype = 'PE'
             readtype_int = 2
@@ -324,9 +483,8 @@ def clean_alignment_file(inpath, threads, fastapath, chr, strict, keepunmapped, 
         #if read.has_tag('MC'):
             #read = remove_tag(read,'MC')
             #read.set_tag(tag = 'MC', value_type = 'Z', value = str(readlen)+'M')
-        if read.has_tag('MD'): #do we fix it or remove it?
-            #read = read.remove_tag('MD')
-            read.set_tag(tag = 'MD', value_type = 'Z', value = str(readlen))
+        if read.has_tag('MD'): # Remove MD tag to let downstream tools regenerate if needed
+            read = remove_tag(read, 'MD')
 
         if strict:
             if read.has_tag('AS'):
@@ -357,18 +515,21 @@ def clean_alignment_file(inpath, threads, fastapath, chr, strict, keepunmapped, 
         #so this should only happen for SE
         if readtype == 'SE' and present_cigar_types[0] in [2, 4, 5]:
             fill_len = incigar[0][1]
-            new_start = read.reference_start-(fill_len+1)
-            if new_start < 1: #take care that things dont go out of range
-                new_start = 1
+            new_start = max(1, read.reference_start - (fill_len + 1))
             read.reference_start = new_start
-            if present_cigar_types[1] == 0: #next segment is mapped, so add the mapped length to cigar
+            # Guard against single-element CIGAR (D/S/H only)
+            if len(incigar) > 1 and present_cigar_types[1] == 0: #next segment is mapped, so add the mapped length to cigar
                 incigar[1] = (incigar[1][0], incigar[1][1] + fill_len)
                 present_cigar_types, incigar = present_cigar_types[1:], incigar[1:]
             else: #otherwise set first segment to M
                 present_cigar_types[0], incigar[0] = 0, (0, incigar[0][1])
 
         if 3 not in present_cigar_types: #unspliced alignment, simply fix sequence
-            final_outseq = fa.fetch(chr, read.reference_start, read.reference_start+readlen)
+            # Clamp FASTA fetch to contig boundaries to avoid errors at chromosome ends
+            ref_len = fa.get_reference_length(contig)
+            s = max(0, read.reference_start)
+            e = min(ref_len, s + readlen)
+            final_outseq = fa.fetch(contig, s, e)
             final_cigar = [(0, readlen)]
         else: #spliced alignment
             splice_fields = [x == 3 for x in present_cigar_types]
@@ -400,12 +561,18 @@ def clean_alignment_file(inpath, threads, fastapath, chr, strict, keepunmapped, 
                     break #don't forget to break the loop
 
             #combine ouput for bam record
-            outseq = [fa.fetch(chr, outsegments[idx][0], outsegments[idx][1]) for idx in outsegments]
+            # Clamp exon fetches to contig boundaries
+            ref_len = fa.get_reference_length(contig)
+            outseq = [fa.fetch(contig, max(0, outsegments[idx][0]), min(ref_len, outsegments[idx][1])) for idx in outsegments]
             outcigar = [(0, outsegments[idx][2]) for idx in outsegments]
             combined_cigar = [field for pair in itertools.zip_longest(outcigar, splicecigar) for field in pair if field is not None]
             #set for output read
             final_outseq = ''.join(outseq)
             final_cigar = combined_cigar
+
+        # Fix reverse-strand reads: SAM/CRAM stores SEQ in alignment orientation
+        if read.is_reverse and final_outseq:
+            final_outseq = _revcomp(final_outseq)
 
         if len(final_outseq) != len(qual): #the sanitized output sequence cannot be longer than a contig (reason:deletions)
             len_diff = len(qual)-len(final_outseq)
@@ -427,7 +594,7 @@ def clean_alignment_file(inpath, threads, fastapath, chr, strict, keepunmapped, 
     except NameError:
         readtype = 'NA'
     if readtype == 'SE':
-        pysam.sort("-o", outpath, tmppath)
+        pysam.sort("-@"+str(threads), "-o", outpath, tmppath)
         if os.path.exists(tmppath):
             os.remove(tmppath)
     else:
@@ -455,12 +622,15 @@ def main():
                         help='Keep secondary alignments in output file.')
     parser.add_argument('--keepunmapped', action = 'store_true',
                         help='Keep unmapped reads in output file.')
+    parser.add_argument('--compression-level', type=int, default=9, choices=range(0, 10),
+                        help='CRAM v3.1 compression level (0-9) with advanced compression tools (LZMA, BZIP2, FQZ, TOK, ARITH). Higher = better compression, slower processing (default: 9 for maximum archival quality)')
 
 
     args = parser.parse_args()
-    v = '0.5.0'
+    v = '1.0.0'  # Updated version for CRAM v3.1+ and compression level 9 support
     print("CRAMboozle.py v"+v)
     print(f"Using {args.p} CPU cores for processing")
+    print(f"CRAM format: v3.1 with compression level {args.compression_level} + advanced compression tools (LZMA, BZIP2, FQZ, TOK, ARITH)")
     
     # Detect input file format
     input_format, input_mode = get_file_format(args.input)
@@ -510,7 +680,7 @@ def main():
     index_ext = '.crai' if input_format == 'cram' else '.bai'
     if not os.path.exists(bampath + index_ext):
         print(f"Input {input_format.upper()} index not found, indexing...")
-        bampath = idx_alignment_file(bampath, args.p)
+        bampath = idx_alignment_file(bampath, args.p, reference_fasta=args.fa, compression_level=args.compression_level)
 
     #Construct the new alignment file header to work with
     bamheader = makeAlignmentHeader(args, v)
@@ -531,15 +701,15 @@ def main():
         n_jobs = args.p
 
     pool = mp.Pool(n_jobs)
-    results = [pool.apply_async(clean_alignment_file, (args.bam,pysam_workers,args.fa,chr,args.strict,args.keepunmapped,args.keepsecondary,bamheader,output_format)) for chr in chrs]
+    results = [pool.apply_async(clean_alignment_file, (args.bam,pysam_workers,args.fa,chr,args.strict,args.keepunmapped,args.keepsecondary,bamheader,output_format,args.compression_level)) for chr in chrs]
     x = [r.get() for r in results]
     #single threaded below:
     #[clean_bam(bampath,pysam_workers,args.fa,chr,args.strict) for chr in chrs]
 
     print(f"Creating final output {output_format.upper()} file...")
-    collect_alignment_chunks(inpath = bampath, chrs = chrs, outpath = args.out, unmapped = args.keepunmapped, reference_fasta = args.fa)
+    collect_alignment_chunks(inpath = bampath, chrs = chrs, outpath = args.out, unmapped = args.keepunmapped, reference_fasta = args.fa, compression_level = args.compression_level)
     print(f"Indexing final output {output_format.upper()} file...")
-    y = idx_alignment_file(args.out, args.p)
+    y = idx_alignment_file(args.out, args.p, reference_fasta=args.fa, compression_level=args.compression_level)
 
     print("Done!")
 
