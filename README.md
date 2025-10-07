@@ -8,10 +8,9 @@ This workflow processes multiple BAM/CRAM files in parallel, de-identifying sequ
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.10+
 - Snakemake
-- pysam
-- samtools
+- pysam (0.21.0+ for CRAM v3.1 support)
 - Reference genome FASTA file (indexed with `samtools faidx`)
 
 ## Setup
@@ -47,8 +46,9 @@ snakemake -s CRAMboozle.snakefile -j 4
 ### Cluster execution (Fred Hutch)
 ```bash
 # Load required modules
-ml snakemake/5.19.2-foss-2019b-Python-3.7.4
-ml Python/3.7.4-foss-2019b-fh1
+ml snakemake/7.32.3-foss-2022b
+ml Python/3.10.8-GCCcore-12.2.0
+ml Pysam/0.21.0-GCC-12.2.0
 
 # Run workflow
 snakemake -s CRAMboozle.snakefile \
