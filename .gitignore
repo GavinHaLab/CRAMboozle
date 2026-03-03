@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Snakemake
+.snakemake/
+logs/
+
+# Results (large output files should not be committed)
+results/*.cram
+results/*.crai
+results/*.bam
+results/*.bai
+results/*.txt
+!results/placeholder.txt
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/

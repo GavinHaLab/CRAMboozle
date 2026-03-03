@@ -1,8 +1,12 @@
-Robert D Patton, 10/06/2025
-rpatton@fredhutch.org
-This is a modified version of BAMboozle for use by the Gavin Ha lab at Fred Hutch Cancer Center
-Changes from the original (v0.5.0) include:
+# CRAMboozle Changelog
 
-1. Adapted to output CRAM format by default, and take in either BAM or CRAM format (dynamic)
-2. Removed the --p ('Number of processes to use') option; now uses all available CPUs by default
-3. Integrated into a simple snakemake to speed up the pipeline process
+## v1.0.0 (2025-10-07)
+Based on BAMboozle v0.5.0 (https://github.com/sandberg-lab/dataprivacy)
+
+Changes from the original BAMboozle:
+1. CRAM support: accepts BAM or CRAM input (auto-detected); outputs CRAM v3.1 by default
+2. Advanced CRAM compression: configurable level 0-9 with LZMA, BZIP2, FQZ, TOK, ARITH codecs
+3. Auto CPU detection: uses all available CPUs by default (--p flag still available to override)
+4. Reference validation: checks CRAM-reference compatibility before processing
+5. Snakemake workflow: batch processing of multiple samples on SLURM clusters
+6. Robust CRAM writer with multi-level fallback for pysam compatibility

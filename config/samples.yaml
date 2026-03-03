@@ -13,11 +13,11 @@ samples:
 
 # Example with more samples:
 # samples:
-#   patient001: /fh/fast/ha_g/user/data/bam_files/patient001_aligned.bam
-#   patient002: /fh/fast/ha_g/user/data/cram_files/patient002_aligned.cram
-#   control001: /fh/fast/ha_g/user/data/bam_files/control001_aligned.bam
-#   tumor_sample_A: /fh/fast/ha_g/user/data/cram_files/tumor_A_sorted.cram
-#   normal_sample_A: /fh/fast/ha_g/user/data/bam_files/normal_A_sorted.bam
+#   patient001: /path/to/bam_files/patient001_aligned.bam
+#   patient002: /path/to/cram_files/patient002_aligned.cram
+#   control001: /path/to/bam_files/control001_aligned.bam
+#   tumor_sample_A: /path/to/cram_files/tumor_A_sorted.cram
+#   normal_sample_A: /path/to/bam_files/normal_A_sorted.bam
 
 # Notes:
 # - File format (BAM/CRAM) is auto-detected by CRAMboozle based on file extension

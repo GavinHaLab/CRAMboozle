@@ -1,6 +1,6 @@
-# cluster_slurm.yaml for CRAMboozle.snakefile, for use on Fred Hutch servers
-# (modfiy to fit your own needs if using snakemake in another setting)
-# Robert Patton, rpatton@fredhutch.org (Ha Lab)
+# cluster_slurm.yaml for CRAMboozle.snakefile
+# Modify partition names and resources to fit your SLURM cluster
+# Robert Patton (Ha Lab, Fred Hutch Cancer Center)
 # v1.0
 
 __default__:
